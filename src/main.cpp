@@ -292,7 +292,7 @@ void alarm(uint8_t alarmNumber){
     if(passedSeconds >= 60 && alarmIgnored[alarmNumber-1]){
         //sets new alarm to trigger 5 min from now;
         alarmIgnoredCount[alarmNumber-1]++;
-        alarm.minutes += 1;
+        alarm.minutes += 5;
         if(alarm.minutes > 59){
             alarm.minutes %= 60;
             alarm.hour++;
@@ -328,11 +328,10 @@ void alarm(uint8_t alarmNumber){
     }
     if(passedSeconds < 60 && !alarmIgnoredCount[alarmNumber-1]){
         //alarm was disabled correctly;
-        // restore the alarm that was stored in the memory
     }
     //if it was ignored 5 times in a row, ignore the alarm and restore the one stored in the memory
     if(alarmIgnoredCount[alarmNumber-1] == 5){
-        alarmIgnored[alarmNumber-1] = false; // alarm was not ignored
+        alarmIgnored[alarmNumber-1] = false;
         alarmIgnoredCount[alarmNumber-1] = 0;
         // restore the alarm that was stored in the memory
         alarm = rtc.readAlarmEEPROM(alarmNumber);
