@@ -1,0 +1,126 @@
+
+This directory is intended for PlatformIO Unit Testing and project tests.
+
+Unit Testing is a software testing method by which individual units of
+source code, sets of one or more MCU program modules together with associated
+control data, usage procedures, and operating procedures, are tested to
+determine whether they are fit for use. Unit testing finds problems early
+in the development cycle.
+
+More information about PlatformIO Unit Testing:
+- https://docs.platformio.org/page/plus/unit-testing.html
+
+IT WAS A TEST, IT FAILED
+
+void printSQW2LCD() {
+    lcd.clear();
+    lcd.print("SQW ");
+    if(SQW_mode == 0)
+        lcd.print("1 Hz");
+    else if(SQW_mode == 1)
+        lcd.print("1kHz");
+    else if(SQW_mode == 2)
+        lcd.print("4kHz");
+    else if(SQW_mode == 3)
+        lcd.print("8kHz");
+    lcd.setCursor(11,0);
+    lcd.print("32kHz");
+    lcd.setCursor(0,1);
+    if(SQW)
+        lcd.print("ON");
+    else lcd.print("OFF");
+    lcd.setCursor(11,1);
+    if(SQW32kHz)
+        lcd.print("ON");
+    else lcd.print("OFF");
+}
+
+// 0 -> SQW MODE || 1 -> SQW ON/OFF || 2 -> 32kHz
+void changeSQW(uint8_t changeItem){
+    uint8_t value;
+    if(digitalRead(UP_pin == HIGH))
+        value = 1;
+    else value = -1;
+    switch (changeItem) {
+        case 0: // 0 , 1 , 2 , 3
+            if(SQW_mode + value == -1)
+                SQW_mode = 3;
+            else if(SQW_mode + value == 4)
+                SQW_mode = 0;
+            else SQW_mode += value;
+            rtc.setSQW(SQW_mode);
+            break;
+        case 1:
+            SQW32kHz = !SQW32kHz;
+            rtc.toggle32kHz(SQW32kHz);
+            break;
+        case 2:
+            SQW = !SQW;
+            rtc.toggleSQW(SQW);
+            break;
+    }
+    printSQW2LCD();
+}
+
+void editSQW(){
+    printSQW2LCD();
+    uint8_t cursorColPosition = 5; // 0 - 15
+    uint8_t cursorRowPosition = 0; // 0 - 1
+    uint8_t timesPressed = 0;
+    lcd.setCursor(cursorColPosition,cursorRowPosition);
+    lcd.blink();
+    lcd.noCursor();
+    delay(200);
+    while(true){
+        //***********************************
+        if(digitalRead(SNOOZE_pin) == HIGH){
+            if(buttonActive == false){
+                buttonActive = true;
+                buttonTimer = millis();
+            }
+            if((millis() - buttonTimer > buttonPressTime) && buttonHoldActive == false){
+                // button has been held down -> exit the loop
+                buttonHoldActive = false;
+                buttonActive = false;
+                lcd.clear();
+                lcd.setCursor(1,0);
+                lcd.noBlink();
+                lcd.noCursor();
+                lcd.print("EXIT EDIT MENU");
+                break;
+            }
+        }
+        else{
+            //button has only been pressed, not held down
+            if(buttonActive == true){
+                //increment the cursor / update the display
+                buttonActive = false;
+                timesPressed++;
+                if(timesPressed == 1){
+                    cursorColPosition +=8;
+                }
+                if(timesPressed == 0){
+                    cursorColPosition = 2;
+                    cursorRowPosition = 0;
+                }
+                if(timesPressed == 2){
+                    cursorColPosition = 0;
+                    cursorRowPosition = 1;
+                }
+            }
+        }
+        if(digitalRead(UP_pin) == HIGH || digitalRead(DOWN_pin) == HIGH){
+            changeSQW(timesPressed);
+            delay(200);
+        }
+        if(AlarmState){
+            uint8_t alarmNumber = rtc.checkAlarmflag();
+            if(alarmNumber == 0) // both alarmTime at the same time
+                alarmNumber = 1; // only deal with alarmTime 1, ignore alarmTime 2;
+            alarm(alarmNumber);
+            delay(700); // debounce time
+        }
+        lcd.setCursor(cursorColPosition,cursorRowPosition);
+        lcd.blink();
+    }
+}
