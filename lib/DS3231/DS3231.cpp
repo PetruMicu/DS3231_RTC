@@ -26,6 +26,10 @@ void DS3231::begin(){
     Wire.begin(); // initializes the library
     DS3231::writeINTCtr(true); // enables INTCN bit from Control register
     // sets the alarm interrupts and disables any alarm flags
+    snoozeAlarm();
+    // restores the alarm in case of power loss
+    alarm1 = readAlarmEEPROM(1);
+    alarm2 = readAlarmEEPROM(2);
     toggleAlarm(1,alarm1.enabled);
     toggleAlarm(2,alarm2.enabled);
     //sets time and date
@@ -512,8 +516,8 @@ void DS3231::snoozeAlarm() {
     byte[0] = DS3231::setLow(byte[0],1);
     DS3231::writeRegister(REG_STATUS,byte,1);
     //restore the INT bit state
-    DS3231::readRegister(REG_CONTROL,byte,1);
-    DS3231::writeINTCtr(INTCtr); // restore INTCN bit's state
+    //DS3231::readRegister(REG_CONTROL,byte,1);
+    //DS3231::writeINTCtr(INTCtr); // restore INTCN bit's state
 }
 
 void DS3231::storeAlarmEEPROM(uint8_t alarmNumber) {
@@ -600,7 +604,7 @@ float DS3231::readKelvin() {
 void DS3231::toggleSQW(bool enable) {
      uint8_t byte[1];
      DS3231::readRegister(REG_CONTROL,byte,1);
-     INTCtr = false; // when 0 SQW is on
+     INTCtr = enable; // when 0 SQW is on
      if(enable)
          byte[0] = DS3231::setLow(byte[0],2);
      else

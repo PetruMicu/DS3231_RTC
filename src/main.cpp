@@ -280,6 +280,7 @@ void alarm(uint8_t alarmNumber){
     lcd.noCursor();
     lcd.noBlink();
     RTCalarm alarm = rtc.readAlarm(alarmNumber);
+    rtc.toggleSQW(true); // make LED blink while alarm is ringing
     while(digitalRead(SNOOZE_pin) == LOW && passedSeconds < 60){
         tone(BUZZ_pin,1245,500);
         printALarm2LCD(alarm);
@@ -342,6 +343,7 @@ void alarm(uint8_t alarmNumber){
             rtc.setAlarmWeekly(alarmNumber,alarm.hour,alarm.minutes,alarm.day);
         }
     }
+    rtc.toggleSQW(false); // turn off SQW
     rtc.snoozeAlarm(); // disable alarm flags
     AlarmState = false; // disable the interrupt variable
 }
