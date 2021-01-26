@@ -29,7 +29,15 @@ void DS3231::begin(){
     snoozeAlarm();
     // restores the alarm in case of power loss
     alarm1 = readAlarmEEPROM(1);
+    if(alarm1.day == DAILY)
+        setAlarmDaily(1,alarm1.hour, alarm1.minutes);
+    else
+        setAlarmWeekly(1, alarm1.hour, alarm1.minutes, alarm1.day);
     alarm2 = readAlarmEEPROM(2);
+    if(alarm2.day == DAILY)
+        setAlarmDaily(2,alarm2.hour, alarm2.minutes);
+    else
+        setAlarmWeekly(2, alarm2.hour, alarm2.minutes, alarm2.day);
     toggleAlarm(1,alarm1.enabled);
     toggleAlarm(2,alarm2.enabled);
     //sets time and date
@@ -533,11 +541,11 @@ void DS3231::storeAlarmEEPROM(uint8_t alarmNumber) {
             address = 0x00;
             break;
         case 2:
-            bytes[0] = alarm1.seconds;
-            bytes[1] = alarm1.minutes;
-            bytes[2] = alarm1.hour;
-            bytes[3] = (uint8_t)alarm1.day;
-            bytes[4] = alarm1.enabled;
+            bytes[0] = alarm2.seconds;
+            bytes[1] = alarm2.minutes;
+            bytes[2] = alarm2.hour;
+            bytes[3] = (uint8_t)alarm2.day;
+            bytes[4] = alarm2.enabled;
             address = 0x05;
             break;
     }

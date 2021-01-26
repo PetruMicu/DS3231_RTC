@@ -721,6 +721,10 @@ void editAlarm(uint8_t alarmNumber){
         lcd.setCursor(cursorColPosition,cursorRowPosition);
         lcd.blink();
     }
+    // When editing the alarm, it counts as not ignored!
+    alarmIgnored[alarmNumber-1] = false;
+    alarmIgnoredCount[alarmNumber-1] = 0;
+    rtc.storeAlarmEEPROM(alarmNumber);
 }
 
 void _ISR(){
