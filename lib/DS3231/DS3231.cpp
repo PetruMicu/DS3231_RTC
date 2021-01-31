@@ -62,7 +62,7 @@ uint8_t DS3231::DECtoBCD(const uint8_t dec) {
     return code;
 }
 
-uint8_t DS3231::writeINTCtr(bool enable) {
+void DS3231::writeINTCtr(bool enable) {
     //reads from control register
     uint8_t byte[1];
     DS3231::readRegister(REG_CONTROL,byte,1);
@@ -79,9 +79,9 @@ uint8_t DS3231::writeINTCtr(bool enable) {
     DS3231::writeRegister(REG_CONTROL,byte,1);
 }
 
-/*
- * *****************************READ FROM DS3231**********************************************************
- */
+/*********************************************************************************************************
+ *                                          READ FROM DS3231
+ *********************************************************************************************************/
 
 void DS3231::readRegister(const uint8_t reg, uint8_t byteBuffer[], const uint16_t bytes) {
     Wire.beginTransmission(DS3231_ADDRESS);
@@ -98,9 +98,9 @@ void DS3231::readRegister(const uint8_t reg, uint8_t byteBuffer[], const uint16_
     //Wire.endTransmission(true);
 }
 
-/*
- * ***************************************WRITE TO DS3231*************************************************
- */
+/*********************************************************************************************************
+ *                                          WRITE TO DS3231
+ *********************************************************************************************************/
 
 void DS3231::writeRegister(const uint8_t reg, const uint8_t* value, const uint8_t bytes) {
     Wire.beginTransmission(DS3231_ADDRESS);
@@ -112,9 +112,10 @@ void DS3231::writeRegister(const uint8_t reg, const uint8_t* value, const uint8_
     Wire.endTransmission(true);
 }
 
-/*
- * ***************************************METHODS COPIED FROM SIMPLEALARMCLOCK LIBRARY******************************
- */
+/*********************************************************************************************************
+ *                                   METHODS COPIED FROM SIMPLEALARMCLOCK LIBRARY
+ *                                          Interact with the EEPROM
+ *********************************************************************************************************/
 
 void DS3231::writeEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes){
     int remainingBytes = bytes;   // bytes left to write
@@ -174,9 +175,9 @@ void DS3231::readEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t by
     }
 }
 
-/*
- * **************************************EDIT SINGLE BITS***************************************************************
- */
+/****************************************************************************************************************
+ *                                          EDIT SINGLE BITS
+ ****************************************************************************************************************/
 
 // sets a bit (0 to 7) to 1 and returns the modified byte
 uint8_t DS3231::setHigh(uint8_t byte, uint8_t bit) {
@@ -190,9 +191,9 @@ uint8_t DS3231::setLow(uint8_t byte, uint8_t bit) {
     return byte & value;
 }
 
-/*
- * ************************************************CONVERTS DAY/DATE TO STRINGS*****************************************
- */
+/****************************************************************************************************************
+ *                                          CONVERTS DAY/DATE TO STRINGS
+ ****************************************************************************************************************/
 
 const char* DS3231::dayStr(const dayOfWeek day){
     switch (day) {
@@ -251,9 +252,58 @@ const char* DS3231::monthStr(const Month month){
     }
 }
 
-/*
- * ***********************************************EDIT TIME*************************************************************
- */
+/****************************************************************************************************************
+ *                                          EDIT TIME
+ ****************************************************************************************************************/
+
+bool DS3231::is_12() {
+    uint8_t byte[1];
+    DS3231::readRegister(REG_TIME + 2, byte, 1);
+    return byte[0] >> 6; // return 6th bit
+}
+
+void DS3231::set_12() {
+    if(DS3231::is_12())
+        return;
+
+    uint8_t byte[1];
+    uint8_t hour;
+    bool pm = false;
+    DS3231::readRegister(REG_TIME + 2, byte, 1);
+    hour = DS3231::BCDtoDEC(byte[0]);
+    if(hour == 0){
+        hour = 12;
+        pm = true;
+    }
+    else if(hour == 12)
+        pm = false;
+    else{
+        if(hour > 12)
+            pm = true;
+        hour %= 12;
+    }
+    byte[0] = DS3231::DECtoBCD(hour);
+    byte[0] = DS3231::setHigh(byte[0], 6);
+    if(pm) byte[0] = DS3231::setHigh(byte[0], 5);
+    DS3231::writeRegister(REG_TIME + 2, byte, 1);
+}
+
+void DS3231::set_24() {
+    if(!DS3231::is_12())
+        return;
+    uint8_t byte[1];
+    DS3231::readRegister(REG_TIME + 2, byte, 1);
+    // first disable unwanted bits, then convert
+    byte[0] = DS3231::setLow(byte[0], 6);
+    bool pm = (bool)(byte[0] >> 5);
+    byte[0] = DS3231::setLow(byte[0], 5);
+    uint8_t hour = DS3231::BCDtoDEC(byte[0]);
+    if(hour == 12 && pm)
+        hour = 0;
+    else if(pm)
+        hour += 12;
+    DS3231::writeRegister(REG_TIME + 2, byte, 1);
+}
 
 //change one unit of time
 // 0-> hour, 1-> minutes, 2->seconds
@@ -263,15 +313,18 @@ void DS3231::setTime(uint8_t number, uint8_t value){
     switch (number) {
         case 0:
             reg = REG_TIME+2;
-            clockTime.hour = value;
+            clockTime.hour = value % 24;
+            value %= 24;
             break;
         case 1:
             reg = REG_TIME+1;
-            clockTime.minutes = value;
+            clockTime.minutes = value % 60;
+            value %= 60;
             break;
         case 2:
             reg = REG_TIME;
-            clockTime.seconds = value;
+            clockTime.seconds = value % 60;
+            value %= 60;
             break;
     }
     byte[0] = DS3231::DECtoBCD(value);
@@ -280,14 +333,14 @@ void DS3231::setTime(uint8_t number, uint8_t value){
 
 void DS3231::setTime(const uint8_t hours, const uint8_t minutes, const uint8_t seconds) {
     uint8_t bytes[3];
-    bytes[0] = DS3231::DECtoBCD(seconds);
-    bytes[1] = DS3231::DECtoBCD(minutes);
-    bytes[2] = DS3231::DECtoBCD(hours);
+    bytes[0] = DS3231::DECtoBCD(seconds % 60);
+    bytes[1] = DS3231::DECtoBCD(minutes % 60);
+    bytes[2] = DS3231::DECtoBCD(hours % 24);
     DS3231::writeRegister(REG_TIME, bytes, 3);
 }
 
 // 0->day, 1->date, 2->month, 3->year
-void DS3231::setDate(uint8_t number, uint8_t value) {
+void DS3231::setDate(uint8_t number, uint16_t value) {
     uint8_t byte[1];
     uint8_t reg;
     switch (number) {
@@ -321,7 +374,7 @@ void DS3231::setDate(uint8_t number, uint8_t value) {
             value -= 100;
         }
         else{
-            // just in case it was active before, deactivate cury bit
+            // just in case it was active before, deactivate century bit
             monthByte[0] = DS3231::setLow(monthByte[0],7);
         }
         // write the changed byte to the register
@@ -342,9 +395,9 @@ void DS3231::setDate(const dayOfWeek day, const Month month, const uint8_t date,
     DS3231::writeRegister(0x03,bytes,4);
 }
 
-/*
- ****************************************************READ TIME**********************************************************
- */
+/****************************************************************************************************************
+ *                                         READ TIME
+ ****************************************************************************************************************/
 
 RTCdata DS3231::readTime() {
     // reads the clockTime and date registers
@@ -365,11 +418,11 @@ RTCdata DS3231::readTime() {
     return clockTime;
 }
 
-/*
- * ***********************************************EDIT ALARMS***********************************************************
- */
+/****************************************************************************************************************
+ *                                         EDIT ALARMS
+ ****************************************************************************************************************/
 
-uint8_t DS3231::checkAlarmflag() {
+uint8_t DS3231::checkAlarmFlag() {
     uint8_t byte[1];
     DS3231::readRegister(REG_STATUS,byte,1);
     bool alarm1Flag, alarm2Flag;
@@ -381,6 +434,7 @@ uint8_t DS3231::checkAlarmflag() {
         return 1;
     else if(!alarm1Flag && alarm2Flag)
         return 2;
+    return 3; // if both on
 }
 
 RTCalarm DS3231::readAlarm(const uint8_t alarmNumber) {
@@ -574,9 +628,9 @@ RTCalarm DS3231::readAlarmEEPROM(uint8_t alarmNumber) {
     return alarm;
 }
 
-/*
- * **********************************************TEMPERATURE************************************************************
- */
+/*****************************************************************************************************************
+ *                                                      TEMPERATURE
+ ****************************************************************************************************************/
 
 float DS3231::readCelcius() {
     float temperature, floatTemp;
@@ -638,19 +692,18 @@ void DS3231::toggleSQW(bool enable) {
              byte[0] = DS3231::setLow(byte[0],4);
              break;
          case 1:
-             byte[0] = DS3231::setLow(byte[0],3);
-             byte[0] = DS3231::setHigh(byte[0],4);
-             break;
-         case 2:
              byte[0] = DS3231::setHigh(byte[0],3);
              byte[0] = DS3231::setLow(byte[0],4);
+             break;
+         case 2:
+             byte[0] = DS3231::setLow(byte[0],3);
+             byte[0] = DS3231::setHigh(byte[0],4);
              break;
          case 3:
              byte[0] = DS3231::setHigh(byte[0],3);
              byte[0] = DS3231::setHigh(byte[0],4);
              break;
      }
-
      DS3231::writeRegister(REG_CONTROL,byte,1);
 }
 
@@ -658,7 +711,7 @@ void DS3231::toggleSQW(bool enable) {
 //status register bit3
 void DS3231::toggle32kHz(bool enable) {
      uint8_t byte[1];
-     DS3231::readRegister(REG_STATUS,byte,1);
+     DS3231::readRegister(REG_STATUS, byte,1);
      if(enable)
          byte[0] = DS3231::setHigh(byte[0],3);
      else

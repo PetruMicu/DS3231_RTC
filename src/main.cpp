@@ -573,7 +573,7 @@ void editClock(){
        }
         // check if alarm condition is met
         if(AlarmState){
-            uint8_t alarmNumber = rtc.checkAlarmflag();
+            uint8_t alarmNumber = rtc.checkAlarmFlag();
             if(alarmNumber == 0) // both alarm at the same time
                 alarmNumber = 1; // only deal with alarm 1, ignore alarm 2;
             alarm(alarmNumber);
@@ -711,7 +711,7 @@ void editAlarm(uint8_t alarmNumber){
             delay(200);
         }
         if(AlarmState){
-            uint8_t alarmNumber = rtc.checkAlarmflag();
+            uint8_t alarmNumber = rtc.checkAlarmFlag();
             if(alarmNumber == 0) // both alarmTime at the same time
                 alarmNumber = 1; // only deal with alarmTime 1, ignore alarmTime 2;
             alarm(alarmNumber);
@@ -732,6 +732,7 @@ void _ISR(){
 }
 
 void setup(){
+    Serial.begin(9600);
     //initialize lcd library for the display ( 2 rows of 16 characters each )
     lcd.begin(16,2);
     //disable all pins that might cause alarm interrupts ---> might change this later
@@ -755,7 +756,7 @@ void setup(){
 void loop(){
     //alarm condition is met
     if(AlarmState){
-        uint8_t alarmNumber = rtc.checkAlarmflag();
+        uint8_t alarmNumber = rtc.checkAlarmFlag();
         if(alarmNumber == 0) // both alarm at the same time
             alarmNumber = 1; // only deal with alarm 1, ignore alarm 2;
         alarm(alarmNumber);
