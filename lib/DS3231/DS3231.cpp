@@ -8,7 +8,7 @@
 DS3231::DS3231(bool INTCtr) {
     // sets the INT bit
     this->INTCtr = INTCtr;
-    clockTime.seconds = 58;
+    clockTime.seconds = 0;
     clockTime.minutes = 0;
     clockTime.hour = 0;
     clockTime.day = FRIDAY;
@@ -307,6 +307,7 @@ void DS3231::set_24() {
 
 //change one unit of time
 // 0-> hour, 1-> minutes, 2->seconds
+// only for 24 hour mode
 void DS3231::setTime(uint8_t number, uint8_t value){
     uint8_t byte[1];
     uint8_t reg;
@@ -336,6 +337,11 @@ void DS3231::setTime(const uint8_t hours, const uint8_t minutes, const uint8_t s
     bytes[0] = DS3231::DECtoBCD(seconds % 60);
     bytes[1] = DS3231::DECtoBCD(minutes % 60);
     bytes[2] = DS3231::DECtoBCD(hours % 24);
+    if(DS3231::is_12()){
+        bytes[2] = DS3231::setHigh(bytes[2], 6);
+        if(clockTime.pm)
+            bytes[2] = DS3231::setHigh(bytes[2], 5);
+    }
     DS3231::writeRegister(REG_TIME, bytes, 3);
 }
 
@@ -405,7 +411,18 @@ RTCdata DS3231::readTime() {
     DS3231::readRegister(REG_TIME,bytes,7);
     clockTime.seconds = DS3231::BCDtoDEC(bytes[0]);
     clockTime.minutes = DS3231::BCDtoDEC(bytes[1]);
-    clockTime.hour = DS3231::BCDtoDEC(bytes[2]);
+    //check if clock runs in 12 hour mode
+    if(bytes[2] >> 6){
+        bytes[2] = DS3231::setLow(bytes[2], 6);
+        if(bytes[2] >> 5){
+            clockTime.pm = true;
+            bytes[2] = DS3231::setLow(bytes[2], 5);
+        }
+        else clockTime.pm = false;
+        clockTime.hour = DS3231::BCDtoDEC(bytes[2]);
+    }
+    else
+        clockTime.hour = DS3231::BCDtoDEC(bytes[2]);
     clockTime.day = dayOfWeek(DS3231::BCDtoDEC(bytes[3]));
     clockTime.date = DS3231::BCDtoDEC(bytes[4]);
     uint8_t century = 0;
@@ -718,4 +735,16 @@ void DS3231::toggle32kHz(bool enable) {
          byte[0] = DS3231::setLow(byte[0], 3);
 
      DS3231::writeRegister(REG_STATUS,byte,1);
+ }
+
+ //the oscillator can stop only if DS3231 is powered by the battery.
+ // 1 -> turned off ; 0 -> turned on;
+ void DS3231::enableOSC(bool enable) {
+     uint8_t byte[1];
+     DS3231::readRegister(REG_CONTROL, byte, 1);
+     if(enable)
+        byte[0] = DS3231::setLow(byte[0], 7);
+     else
+         byte[0] = DS3231::setHigh(byte[0], 7);
+     DS3231::writeRegister(REG_CONTROL, byte, 1);
  }

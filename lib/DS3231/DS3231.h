@@ -87,6 +87,7 @@ struct RTCdata{
     Month month;
     uint16_t year;
     uint8_t date;
+    bool pm;
     bool operator == (RTCdata clock){
         return (this->seconds == clock.seconds && this->minutes == clock.minutes && this->hour == clock.hour &&
                 this->day == clock.day && this->month == clock.month && this->year == clock.year &&
@@ -113,6 +114,7 @@ struct RTCalarm{
     uint8_t hour;
     dayOfWeek day;
     bool enabled;
+    bool pm;
     RTCalarm operator = (const RTCalarm& alarm) {
         this->seconds = alarm.seconds;
         this->minutes = alarm.minutes;
@@ -148,6 +150,7 @@ private:
     static void readEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes); /// reads a number of bytes stored at the given address of the EEPROM
     static void writeEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes); /// writes a number of bytes to a given address of the EEPROM
     void writeINTCtr(bool enable); /// toggles INTCN (bit 2 of control register)
+    RTCdata readTime_12();
 public:
     DS3231(bool INTCtr = true); /// By default, no SQW is outputted
     void begin(); /// Disables alarm flags, sets the INTCtr bit, restores alarms from memory, sets time
@@ -197,7 +200,7 @@ public:
     void toggleSQW(bool enable); /// when enabled, INTCN bit is set low and SQW is outputted (no alarm can be triggered)
     void setSQW(uint8_t mode); /// Sets the frequency of the SQW; 0 : 1Hz, 1 : 1kHz, 2: 4kHz, 3 : 8kHz
     void toggle32kHz(bool enable); /// enables or disables the 32kHz square wave outputted at pin 32K
-    //void enableOSC(bool enable);  /// starts or stops the internal oscillator (effect only in battery mode)
+    void enableOSC(bool enable);  /// starts or stops the internal oscillator (effect only in battery mode)
 };
 
 
