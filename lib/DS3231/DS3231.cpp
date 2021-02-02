@@ -23,6 +23,8 @@ DS3231::DS3231(bool INTCtr) {
 
 //initialize the DS3231 RTC
 void DS3231::begin(){
+    TestPerformance test("begin");
+    test.startCount();
     Wire.begin(); // initializes the library
     DS3231::writeINTCtr(true); // enables INTCN bit from Control register
     // sets the alarm interrupts and disables any alarm flags
@@ -40,6 +42,7 @@ void DS3231::begin(){
         setAlarmWeekly(2, alarm2.hour, alarm2.minutes, alarm2.day);
     toggleAlarm(1,alarm1.enabled);
     toggleAlarm(2,alarm2.enabled);
+    test.stopCount();
     //sets time and date
     /*setTime(clockTime.hour, clockTime.minutes, clockTime.seconds);
     setDate(clockTime.day,clockTime.month,clockTime.date,clockTime.year);*/
@@ -94,7 +97,6 @@ void DS3231::readRegister(const uint8_t reg, uint8_t byteBuffer[], const uint16_
                 byteBuffer[i] = Wire.read();
         }
     }
-
     //Wire.endTransmission(true);
 }
 
@@ -113,11 +115,12 @@ void DS3231::writeRegister(const uint8_t reg, const uint8_t* value, const uint8_
 }
 
 /*********************************************************************************************************
- *                                   METHODS COPIED FROM SIMPLEALARMCLOCK LIBRARY
  *                                          Interact with the EEPROM
  *********************************************************************************************************/
 
 void DS3231::writeEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes){
+    TestPerformance test("writeEEPROM");
+    test.startCount();
     int remainingBytes = bytes;   // bytes left to write
     int offsetDataBuffer = 0;           // current offset in dataBuffer pointer
     int offsetPage;                     // current offset in page
@@ -145,6 +148,7 @@ void DS3231::writeEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t b
         offsetDataBuffer += nextByte;
         address += nextByte;
     }
+    test.stopCount();
 }
 
 void DS3231::readEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes) {
@@ -308,6 +312,8 @@ void DS3231::set_24() {
 //change one unit of time
 // 0-> hour, 1-> minutes, 2->seconds
 void DS3231::setTime(uint8_t number, uint8_t value){
+    TestPerformance test("setTime_singleValue");
+    test.startCount();
     uint8_t byte[1];
     uint8_t reg;
     switch (number) {
@@ -329,18 +335,24 @@ void DS3231::setTime(uint8_t number, uint8_t value){
     }
     byte[0] = DS3231::DECtoBCD(value);
     DS3231::writeRegister(reg, byte,1);
+    test.stopCount();
 }
 
 void DS3231::setTime(const uint8_t hours, const uint8_t minutes, const uint8_t seconds) {
+    TestPerformance test("setTime_multipleValues");
+    test.startCount();
     uint8_t bytes[3];
     bytes[0] = DS3231::DECtoBCD(seconds % 60);
     bytes[1] = DS3231::DECtoBCD(minutes % 60);
     bytes[2] = DS3231::DECtoBCD(hours % 24);
     DS3231::writeRegister(REG_TIME, bytes, 3);
+    test.stopCount();
 }
 
 // 0->day, 1->date, 2->month, 3->year
 void DS3231::setDate(uint8_t number, uint16_t value) {
+    TestPerformance test("setDate_singleValue");
+    test.startCount();
     uint8_t byte[1];
     uint8_t reg;
     switch (number) {
@@ -383,8 +395,12 @@ void DS3231::setDate(uint8_t number, uint16_t value) {
     // convert byte to bcd format
     byte[0] = DS3231::DECtoBCD(value);
     DS3231::writeRegister(reg, byte,1);
+    test.stopCount();
 }
+
 void DS3231::setDate(const dayOfWeek day, const Month month, const uint8_t date, const uint16_t year) {
+    TestPerformance test("setDate_multipleValues");
+    test.startCount();
     uint8_t bytes[4];
     // converts data to BCD and stores it in bytes buffer
     bytes[0] = DS3231::DECtoBCD((uint8_t)day);
@@ -393,6 +409,7 @@ void DS3231::setDate(const dayOfWeek day, const Month month, const uint8_t date,
     bytes[3] = DS3231::DECtoBCD(year - 2000);
     //writes the bytes from the bytes buffer to the DS3231 starting with day register
     DS3231::writeRegister(0x03,bytes,4);
+    test.stopCount();
 }
 
 /****************************************************************************************************************
@@ -400,6 +417,8 @@ void DS3231::setDate(const dayOfWeek day, const Month month, const uint8_t date,
  ****************************************************************************************************************/
 
 RTCdata DS3231::readTime() {
+    TestPerformance test("readTime");
+    test.startCount();
     // reads the clockTime and date registers
     uint8_t bytes[7];
     DS3231::readRegister(REG_TIME,bytes,7);
@@ -415,6 +434,7 @@ RTCdata DS3231::readTime() {
     }
     clockTime.month = Month(DS3231::BCDtoDEC(bytes[5] & 0b00011111));
     clockTime.year = DS3231::BCDtoDEC(bytes[6]) + 2000 + century;
+    test.stopCount();
     return clockTime;
 }
 
@@ -461,6 +481,8 @@ bool DS3231::alarmState(uint8_t alarmNumber) const {
 }
 
 void DS3231::toggleAlarm(const uint8_t alarmNumber, bool enable) {
+    TestPerformance test("toogleAlarm");
+    test.startCount();
     snoozeAlarm(); // in case alarm flag were activated but the alarm interrupts were off
     uint8_t byte[1];
     DS3231::readRegister(REG_CONTROL, byte, 1);
@@ -487,6 +509,7 @@ void DS3231::toggleAlarm(const uint8_t alarmNumber, bool enable) {
     if(!INTCtr)
         writeINTCtr(true); // enables INTC bit in case it's disabled
     DS3231::writeRegister(REG_CONTROL, byte, 1);
+    test.stopCount();
 }
 
 //copies alarm information
@@ -502,6 +525,8 @@ void DS3231::setAlarm(uint8_t alarmNumber, RTCalarm &alarm) {
 }
 
 void DS3231::setAlarmDaily(const uint8_t alarmNumber, uint8_t hour, const uint8_t minute) {
+    TestPerformance test("setAlarmDaily");
+    test.startCount();
     uint8_t bytes[4];
     bytes[0] = 0x00; // alarm starts at seconds 00;
     bytes[1] = DECtoBCD(minute);
@@ -533,9 +558,12 @@ void DS3231::setAlarmDaily(const uint8_t alarmNumber, uint8_t hour, const uint8_
             DS3231::writeRegister(REG_ALARM2_MIN,bytes2,3);
             break;
     }
+    test.stopCount();
 }
 
 void DS3231::setAlarmWeekly(uint8_t alarmNumber, uint8_t hour, const uint8_t minute, const dayOfWeek day) {
+    TestPerformance test("setAlarmWeekly");
+    test.startCount();
     uint8_t bytes[4];
     bytes[0] = 0x00; // alarm starts at seconds 00;
     bytes[1] = DS3231::DECtoBCD(minute);
@@ -568,6 +596,7 @@ void DS3231::setAlarmWeekly(uint8_t alarmNumber, uint8_t hour, const uint8_t min
             DS3231::writeRegister(REG_ALARM2_MIN,bytes2,3);
             break;
     }
+    test.stopCount();
 }
 
 //disable alarm flags
@@ -624,7 +653,6 @@ RTCalarm DS3231::readAlarmEEPROM(uint8_t alarmNumber) {
     alarm.hour = byteBuffer[2];
     alarm.day = (dayOfWeek)byteBuffer[3];
     alarm.enabled = byteBuffer[4];
-
     return alarm;
 }
 
@@ -633,6 +661,8 @@ RTCalarm DS3231::readAlarmEEPROM(uint8_t alarmNumber) {
  ****************************************************************************************************************/
 
 float DS3231::readCelcius() {
+    TestPerformance test("readCelcius");
+    test.startCount();
     float temperature, floatTemp;
     uint8_t bytes[2];
     DS3231::readRegister(REG_TEMP_INT,bytes,2);
@@ -643,7 +673,7 @@ float DS3231::readCelcius() {
         temperature += floatTemp;
     else
         temperature -= floatTemp;
-
+    test.stopCount();
     return temperature;
 }
 

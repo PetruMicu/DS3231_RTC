@@ -7,6 +7,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include "../../test/TestPerformance.h"
 
 #define DS3231_ADDRESS 0x68
 #define EEPROM_ADDRESS 0x57
