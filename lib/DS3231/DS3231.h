@@ -234,7 +234,7 @@ public:
      */
     void setDate(uint8_t number, uint16_t value);
     ///Method to change all items related to date at once.
-    void setDate(const dayOfWeek day, const Month month, const uint8_t date, const uint16_t year);
+    void setDate(const dayOfWeek day, const Month month, const uint8_t date, uint16_t year);
     /**
      * Method to read the time keeping registers of the device.
      * @return Returns an RTCdata object that holds the information from the registers

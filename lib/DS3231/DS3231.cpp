@@ -417,15 +417,15 @@ void DS3231::setDate(uint8_t number, uint16_t value) {
     DS3231::writeRegister(reg, byte,1);
 }
 
-void DS3231::setDate(const dayOfWeek day, const Month month, const uint8_t date, const uint16_t year) {
+void DS3231::setDate(const dayOfWeek day, const Month month, const uint8_t date, uint16_t year) {
     uint8_t bytes[4];
     // converts data to BCD and stores it in bytes buffer
     bytes[0] = DS3231::DECtoBCD((uint8_t)day);
     bytes[1] = DS3231::DECtoBCD(date);
     bytes[2] = DS3231::DECtoBCD((uint8_t)month);
     if(year > 2099 && year < 2200){
-        year -= 100;
         bytes[2] = DS3231::setHigh(bytes[2], 7); //activate century bit
+        year -= 100;
     }
     bytes[3] = DS3231::DECtoBCD(year - 2000);
     //writes the bytes from the bytes buffer to the DS3231 starting with day register
