@@ -1,5 +1,5 @@
 # DS3231_RTC
-Real Time Clock Library + Sketch
+Real Time Clock Driver + Sketch
 
 This project contains a DS3231 library as well as a sketch to test the library.
 The code used is compatible with the ZS-042 RTC module that consits of a DS3231 chip
