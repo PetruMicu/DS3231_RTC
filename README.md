@@ -1,7 +1,7 @@
 # DS3231_RTC
 Real Time Clock Driver + Sketch
 
-This project contains a DS3231 library as well as a sketch to test the library.
+This project contains a DS3231 driver as well as a sketch to test the library.
 The code used is compatible with the ZS-042 RTC module that consits of a DS3231 chip
 and an EEPROM.
 The library uses the EEPROM only for storing the alarm information. This feature is used in
