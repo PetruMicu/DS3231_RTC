@@ -19,13 +19,14 @@ DS3231::DS3231(bool INTCtr) {
     // A1IE & A2IE bits are set low in the begin method
     alarm1.enabled = false;
     alarm2.enabled = false;
+    timeKeep = 0; // always restarts temperature sampling
 }
 
 /**
  * @details This method reads the alarms stored in memory and sets them accordingly.
  * It also disables the alarm flags in case the power was lost while alarm was triggered.
  */
-initialize the DS3231 RTC
+//initialize the DS3231 RTC
 void DS3231::begin(){
     Wire.begin(); // initializes the library
     DS3231::writeINTCtr(true); // enables INTCN bit from Control register
@@ -44,6 +45,8 @@ void DS3231::begin(){
         setAlarmWeekly(2, alarm2.hour, alarm2.minutes, alarm2.day);
     toggleAlarm(1,alarm1.enabled);
     toggleAlarm(2,alarm2.enabled);
+    takeStoredTemperature(); // take last temperatures from memory
+    readTime();
 }
 
 // converts binary coded decimal to decimal
@@ -126,7 +129,7 @@ void DS3231::writeRegister(const uint8_t reg, const uint8_t* value, const uint8_
  *                                           Interact with the EEPROM
 ---------------------------------------------------------------------------------------------------------------------*/
 
-void DS3231::writeEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes){
+void DS3231::writeEEPROM(uint16_t address, uint8_t byteBuffer[], const uint16_t bytes){
     int remainingBytes = bytes;   // bytes left to write
     int offsetDataBuffer = 0;           // current offset in dataBuffer pointer
     int offsetPage;                     // current offset in page
@@ -138,7 +141,7 @@ void DS3231::writeEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t b
         // calc offset in page
         offsetPage = address % pageSize;
         // maximal 30 bytes to write
-        nextByte = min(min(remainingBytes, 30), pageSize - offsetPage);
+        nextByte = min(min(remainingBytes, 32), pageSize - offsetPage);
         Wire.beginTransmission(EEPROM_ADDRESS);
         if (Wire.endTransmission() == 0) {
             Wire.beginTransmission(EEPROM_ADDRESS);
@@ -156,7 +159,7 @@ void DS3231::writeEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t b
     }
 }
 
-void DS3231::readEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes) {
+void DS3231::readEEPROM(uint16_t address, uint8_t byteBuffer[], const uint16_t bytes) {
     int remainingBytes = bytes;
     int offsetDataBuffer = 0;
     // read until are bytes bytes read
@@ -367,6 +370,9 @@ void DS3231::setTime(const uint8_t hours, const uint8_t minutes, const uint8_t s
             bytes[2] = DS3231::setHigh(bytes[2], 5);
     }
     DS3231::writeRegister(REG_TIME, bytes, 3);
+    clockTime.seconds = seconds;
+    clockTime.minutes = minutes;
+    clockTime.hour = hours;
 }
 
 // 0->day, 1->date, 2->month, 3->year
@@ -439,6 +445,7 @@ void DS3231::setDate(const dayOfWeek day, const Month month, const uint8_t date,
 RTCdata DS3231::readTime() {
     // reads the clockTime and date registers
     uint8_t bytes[7];
+    uint8_t lastMinute = clockTime.minutes;
     DS3231::readRegister(REG_TIME,bytes,7);
     clockTime.seconds = DS3231::BCDtoDEC(bytes[0]);
     clockTime.minutes = DS3231::BCDtoDEC(bytes[1]);
@@ -463,6 +470,25 @@ RTCdata DS3231::readTime() {
     }
     clockTime.month = Month(DS3231::BCDtoDEC(bytes[5] & 0b00011111));
     clockTime.year = DS3231::BCDtoDEC(bytes[6]) + 2000 + century;
+    if(lastMinute != clockTime.minutes) { // minute has changed
+        float temperature = DS3231::readCelcius();
+        last1hTemperature[timeKeep % 60] = temperature;
+        timeKeep++;
+    }
+    if(timeKeep == 60) { // hour has changed
+        float avrgTemperature = 0;
+        for(uint8_t i = 0; i < 60; i++) {
+            avrgTemperature += last1hTemperature[i];
+            last1hTemperature[i] = 0.0;
+        }
+        avrgTemperature /= 60.0;
+        for(int8_t i = 22; i >= 0; i--) {
+            last24hTemperature[i + 1] = last24hTemperature[i]; // discards oldest data and shift
+        }
+        last24hTemperature[0] = avrgTemperature;
+        storeTemperature();
+        timeKeep = 0;
+    }
     return clockTime;
 }
 
@@ -632,7 +658,7 @@ void DS3231::snoozeAlarm() {
 
 void DS3231::storeAlarmEEPROM(uint8_t alarmNumber) {
     uint8_t bytes[5];
-    uint8_t address;
+    uint16_t address;
     switch (alarmNumber) {
         case 1:
             bytes[0] = alarm1.seconds;
@@ -640,7 +666,7 @@ void DS3231::storeAlarmEEPROM(uint8_t alarmNumber) {
             bytes[2] = alarm1.hour;
             bytes[3] = (uint8_t)alarm1.day;
             bytes[4] = alarm1.enabled;
-            address = 0x00;
+            address = ALARM1_ADDRESS;
             break;
         case 2:
             bytes[0] = alarm2.seconds;
@@ -648,30 +674,30 @@ void DS3231::storeAlarmEEPROM(uint8_t alarmNumber) {
             bytes[2] = alarm2.hour;
             bytes[3] = (uint8_t)alarm2.day;
             bytes[4] = alarm2.enabled;
-            address = 0x05;
+            address = ALARM2_ADDRESS;
             break;
     }
     writeEEPROM(address,bytes,5);
 }
 
 RTCalarm DS3231::readAlarmEEPROM(uint8_t alarmNumber) {
-    uint8_t address;
+    uint16_t address;
     uint8_t byteBuffer[5];
     switch (alarmNumber) {
         case 1:
-            address = 0x00;
+            address = ALARM1_ADDRESS;
             break;
         case 2:
-            address = 0x05;
+            address = ALARM2_ADDRESS;
             break;
     }
     RTCalarm alarm;
     DS3231::readEEPROM(address, byteBuffer, 5);
-    alarm.seconds = byteBuffer[0];
-    alarm.minutes = byteBuffer[1];
-    alarm.hour = byteBuffer[2];
-    alarm.day = (dayOfWeek)byteBuffer[3];
-    alarm.enabled = byteBuffer[4];
+    alarm.seconds = byteBuffer[0] % 60;
+    alarm.minutes = byteBuffer[1] % 60;
+    alarm.hour = byteBuffer[2] % 24;
+    alarm.day = (dayOfWeek)(byteBuffer[3] % 8);
+    alarm.enabled = byteBuffer[4] % 2;
 
     return alarm;
 }
@@ -780,3 +806,24 @@ void DS3231::toggle32kHz(bool enable) {
          byte[0] = DS3231::setHigh(byte[0], 7);
      DS3231::writeRegister(REG_CONTROL, byte, 1);
  }
+
+
+/*--------------------------------------------------------------------------------------------------------------------
+*                                              TEMPERATURE DATA
+---------------------------------------------------------------------------------------------------------------------*/
+
+void DS3231::storeTemperature(void) {
+    writeEEPROM(TEMPERATURE_ADDRESS, (uint8_t*)last24hTemperature, 24*sizeof(float));
+}
+
+void DS3231::takeStoredTemperature(void) {
+    readEEPROM(TEMPERATURE_ADDRESS, (uint8_t*)last24hTemperature, 24*sizeof(float));
+}
+
+void DS3231::readLast24hTemperature(float* temperatures) {
+    readEEPROM(TEMPERATURE_ADDRESS, (uint8_t*)temperatures, 24*sizeof(float));
+}
+
+void DS3231::writeDummyTemperatures(float* temperatures) {
+    writeEEPROM(TEMPERATURE_ADDRESS, (uint8_t*)temperatures, 24*sizeof(float));
+}

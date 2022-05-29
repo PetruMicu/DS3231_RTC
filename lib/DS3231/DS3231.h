@@ -11,6 +11,10 @@
 #define DS3231_ADDRESS 0x68
 #define EEPROM_ADDRESS 0x57
 
+#define TEMPERATURE_ADDRESS (uint16_t)(0x0000)
+#define ALARM1_ADDRESS (uint16_t)(0x1000u)
+#define ALARM2_ADDRESS (uint16_t)(0x1005u)
+
 /*-----------------------------------------------------------------------------
                             * 0x00 -> seconds
                             * 0x01 -> minutes
@@ -144,6 +148,14 @@ private:
     RTCalarm alarm1;
     /// holds alarm2 information.
     RTCalarm alarm2;
+    /// holds timeKeeping information
+    uint8_t timeKeep;
+//    /// holds temperature values from last week
+//    float lastWeekTemperature[7]{};
+    /// holds temperature values from last 24h
+    float last24hTemperature[24]{};
+    /// holds temperature values from last 1h
+    float last1hTemperature[60]{};
 private:
     //Private Class Methods
     /**
@@ -184,16 +196,20 @@ private:
      * @param byteBuffer A byte buffer that holds the data
      * @param bytes The number of bytes that need to be read.
      */
-    static void readEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes);
+    static void readEEPROM(uint16_t address, uint8_t byteBuffer[], const uint16_t bytes);
     /**
      * Method to write data to a specific address on the EEPROM chip of the device.
      * @param address address The address where data is being stored
      * @param byteBuffer A byte buffer that holds the data
      * @param bytes The number of bytes that need to be written.
      */
-    static void writeEEPROM(uint8_t address, uint8_t byteBuffer[], const uint16_t bytes);
+    static void writeEEPROM(uint16_t address, uint8_t byteBuffer[], const uint16_t bytes);
     ///Method to toggle the INTCN bit (bit 2 of control register).
     void writeINTCtr(bool enable);
+    ///Method to store temperature vector in EEPROM
+    void storeTemperature(void);
+    ////Method to replace last24hTemperature vector with values from memory
+    void takeStoredTemperature(void);
 public:
     /// By default, no SQW is outputted.
     DS3231(bool INTCtr = true);
@@ -353,6 +369,8 @@ public:
      * @param enable True -> enables the oscillator; False -> disables the oscillator
      */
     void enableOSC(bool enable);
+    void readLast24hTemperature(float* temperatures);
+    void writeDummyTemperatures(float* temperatures);
 };
 
 

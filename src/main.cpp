@@ -2,9 +2,9 @@
 // Created by petru on 30.12.2020.
 //
 
-#include "../lib/DS3231/DS3231.h"
-#include "../lib/LiquidCrystal/LiquidCrystal.h"
-#include <Arduino.h>
+#include <DS3231.h>
+#include <LiquidCrystal.h>
+//#include <Arduino.h>
 
 //Pins used for lcd display
 
@@ -25,6 +25,7 @@ uint8_t INT_pin = 2; // LOW when alarm condition is met
 uint8_t SNOOZE_pin =5;
 uint8_t UP_pin = 4; // increment / toggle alarm1 / set alarm1 (while not in edit mode)
 uint8_t DOWN_pin = 3; // decrement / toggle alarm2 / set alarm2 (while not in edit mode)
+uint8_t GRAPH_pin = A0;
 
 // variables for alarm management
 
@@ -521,40 +522,40 @@ void editClock(){
             //lcd.blink();
         }
         //***********************************
-       if(digitalRead(SNOOZE_pin) == HIGH){
-           if(buttonActive == false){
-               buttonActive = true;
-               buttonTimer = millis();
-           }
-           if((millis() - buttonTimer > buttonPressTime) && buttonHoldActive == false){
-               // button has been held down -> exit the loop
-               buttonHoldActive = false;
-               buttonActive = false;
-               lcd.clear();
-               lcd.setCursor(1,0);
-               lcd.noBlink();
-               lcd.noCursor();
-               lcd.print("EXIT EDIT MENU");
-               break;
-           }
-       }
-       else{
-           //button has only been pressed, not held down
-           if(buttonActive == true){
-               //increment the cursor / update the display
-               printTime2LCD();
-               buttonActive = false;
-               timesPressed++;
-               if(timesPressed == 9)
-                   timesPressed = 1;
-               switch (cursorRowPosition) {
-                   case 0: // cursor on the first row
-                       if(timesPressed == 3){ // on the 4th press ...
-                           cursorColPosition += 11; // jump to the temperature measure unit
-                       }
-                       else cursorColPosition += 3;
-                       break;
-                   case 1: // cursor on the second row
+        if(digitalRead(SNOOZE_pin) == HIGH){
+            if(buttonActive == false){
+                buttonActive = true;
+                buttonTimer = millis();
+            }
+            if((millis() - buttonTimer > buttonPressTime) && buttonHoldActive == false){
+                // button has been held down -> exit the loop
+                buttonHoldActive = false;
+                buttonActive = false;
+                lcd.clear();
+                lcd.setCursor(1,0);
+                lcd.noBlink();
+                lcd.noCursor();
+                lcd.print("EXIT EDIT MENU");
+                break;
+            }
+        }
+        else{
+            //button has only been pressed, not held down
+            if(buttonActive == true){
+                //increment the cursor / update the display
+                printTime2LCD();
+                buttonActive = false;
+                timesPressed++;
+                if(timesPressed == 9)
+                    timesPressed = 1;
+                switch (cursorRowPosition) {
+                    case 0: // cursor on the first row
+                        if(timesPressed == 3){ // on the 4th press ...
+                            cursorColPosition += 11; // jump to the temperature measure unit
+                        }
+                        else cursorColPosition += 3;
+                        break;
+                    case 1: // cursor on the second row
                         if(timesPressed == 7){
                             cursorColPosition += 5; // jumps to the year
                         }
@@ -563,14 +564,14 @@ void editClock(){
                             //set up alarms using 2 buttons, 1 for each alarm
                         }
                         else cursorColPosition += 3;
-                       break;
-               }
-           }
-       }
-       //increment or decrement the selected/blinking value;
-       if(digitalRead(UP_pin) == HIGH || digitalRead(DOWN_pin) == HIGH){
-           changeValue(timesPressed);
-       }
+                        break;
+                }
+            }
+        }
+        //increment or decrement the selected/blinking value;
+        if(digitalRead(UP_pin) == HIGH || digitalRead(DOWN_pin) == HIGH){
+            changeValue(timesPressed);
+        }
         // check if alarm condition is met
         if(AlarmState){
             uint8_t alarmNumber = rtc.checkAlarmFlag();
@@ -727,6 +728,107 @@ void editAlarm(uint8_t alarmNumber){
     rtc.storeAlarmEEPROM(alarmNumber);
 }
 
+void restoreCharacters() {
+    lcd.createChar(ASymbol,alarmSymbol);
+    lcd.createChar(A1ON,alarm1ON);
+    lcd.createChar(A2ON,alarm2ON);
+    lcd.createChar(BothON,bothAlarms);
+    lcd.createChar(CELCIUS,celcius);
+    lcd.createChar(FAHRENHEIT,fahrenheit);
+    lcd.createChar(KELVIN,kelvin);
+    lcd.setCursor(0,0);
+}
+
+uint8_t getTmpBarLevel(float temperature) {
+    if(temperature >= 0 && temperature < 5)
+        return 0;
+    if(temperature >= 5 && temperature < 10)
+        return 1;
+    if(temperature >= 10 && temperature < 15)
+        return 2;
+    if(temperature >= 15 && temperature < 20)
+        return 3;
+    if(temperature >= 20 && temperature < 25)
+        return 4;
+    if(temperature >= 25 && temperature < 30)
+        return 5;
+    if(temperature >= 30 && temperature < 35)
+        return 6;
+    if(temperature >= 35)
+        return 7;
+    return 0;
+}
+
+void createTmpGraph(float* temperatures) {
+    lcd.clear();
+    lcd.setCursor(0,0);
+    rtc.readLast24hTemperature(temperatures);
+    int8_t tempIndex = 23;
+    for (uint8_t i = 0; i < 8; i++) {
+        byte character[8] = {0};
+        for (int8_t j = 2; j >= 0; j--) {
+            uint8_t level = getTmpBarLevel(temperatures[tempIndex--]);
+            for (uint8_t k = 7; k >= 7 - level; k--) {
+                character[k] |= (0x01 << j);
+            }
+        }
+        lcd.createChar(i, character);
+        lcd.setCursor(i, 1);
+        lcd.write(i);
+    }
+    lcd.setCursor(0, 0);
+    lcd.print("Temp (last 24h)");
+}
+
+void editGraph() {
+    float temperatures[24];
+    createTmpGraph(temperatures);
+    while(true) {
+        //***********************************
+        if (digitalRead(SNOOZE_pin) == HIGH) {
+            if (buttonActive == false) {
+                buttonActive = true;
+                buttonTimer = millis();
+            }
+            if ((millis() - buttonTimer > buttonPressTime) && buttonHoldActive == false) {
+                // button has been held down -> exit the loop
+                buttonHoldActive = false;
+                buttonActive = false;
+                lcd.clear();
+                lcd.setCursor(1, 0);
+                lcd.noBlink();
+                lcd.noCursor();
+                lcd.print("EXIT TMP MENU");
+                delay(500);
+                break;
+            }
+        } else {
+            //button has only been pressed, not held down
+            if(buttonActive == true){
+                buttonActive = false;
+                createTmpGraph(temperatures);
+                delay(700);
+            }
+        }
+        // check if alarm condition is met
+        if(AlarmState){
+            uint8_t alarmNumber = rtc.checkAlarmFlag();
+            if(alarmNumber == 0) // both alarm at the same time
+                alarmNumber = 1; // only deal with alarm 1, ignore alarm 2;
+            alarm(alarmNumber);
+            delay(700); // debounce time
+            //printTime2LCD(); // update the screen since we've exited the alarm state
+            restoreCharacters();
+            lcd.clear();
+            return;
+        }
+        rtc.readTime();
+    }
+    lcd.home();
+    lcd.clear();
+    restoreCharacters();
+}
+
 void _ISR(){
     AlarmState = true;
 }
@@ -743,6 +845,7 @@ void setup(){
     pinMode(UP_pin,INPUT);
     pinMode(DOWN_pin,INPUT);
     pinMode(BUZZ_pin,OUTPUT);
+    pinMode(GRAPH_pin, INPUT);
     //create custom characters (up to 8 characters)
     lcd.createChar(ASymbol,alarmSymbol);
     lcd.createChar(A1ON,alarm1ON);
@@ -779,7 +882,10 @@ void loop(){
         editAlarm(2);
         delay(500);
     }
-
+    if(digitalRead(GRAPH_pin) == LOW) {
+        editGraph();
+        delay(500);
+    }
     //enter SWQ edit mode
     printTime2LCD();
 }
